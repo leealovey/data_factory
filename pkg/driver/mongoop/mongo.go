@@ -2,6 +2,8 @@ package mongoop
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -30,14 +32,38 @@ func (m *MongoConfig) Conn() (*mongo.Client, error) {
 		return nil, err
 	}
 
-	collection := client.Database("test").Collection("col")
+	db := client.Database("test")
 
-	res, err := collection.InsertOne(ctx, bson.M{"hello": "world"})
+	result, err := db.ListCollectionNames(context.TODO(), bson.M{})
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
-	id := res.InsertedID
-	log.Println(id)
+
+	fmt.Println(result)
+
+	for _, v := range result {
+		coll := db.Collection(v)
+
+		cursor, err := coll.Find(ctx, bson.M{})
+		if err != nil {
+			return nil, err
+		}
+
+		var results []interface{}
+		if err = cursor.All(context.TODO(), &results); err != nil {
+			log.Fatal(err)
+		}
+
+		rawjson, err := json.Marshal(results)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println(string(rawjson))
+		// for _, r := range results {
+		// 	fmt.Println(r)
+		// }
+	}
 
 	return client, nil
 }
