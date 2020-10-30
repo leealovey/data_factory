@@ -17,14 +17,17 @@ type MongoConfig struct {
 	URI string
 }
 
-// Conn mongoDB Connector
-func (m *MongoConfig) Conn() (*mongo.Client, error) {
+// SendCollections mongoDB Connector
+func (m *MongoConfig) SendCollections() ([]byte, error) {
+	res := []byte{}
+	colls := []string{}
+
 	client, err := mongo.NewClient(options.Client().ApplyURI(m.URI))
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
 
 	err = client.Connect(ctx)
@@ -32,38 +35,81 @@ func (m *MongoConfig) Conn() (*mongo.Client, error) {
 		return nil, err
 	}
 
-	db := client.Database("test")
+	// create test data
+	// collection := client.Database("test").Collection("col")
 
-	result, err := db.ListCollectionNames(context.TODO(), bson.M{})
+	// for i := 0; i < 1000; i++ {
+	// 	data := []interface{}{
+	// 		bson.M{
+	// 			"index": i,
+	// 			"data":  "test",
+	// 			"host":  "localhost",
+	// 			"bing":  "test",
+	// 		},
+	// 	}
+
+	// 	opts := options.InsertMany().SetOrdered(false)
+	// 	res, err := collection.InsertMany(ctx, data, opts)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Printf("inserted documents with IDs %v\n", res.InsertedIDs)
+	// }
+
+	db := client.Database("lsqt_db")
+
+	result, err := db.ListCollectionNames(ctx, bson.M{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(result)
-
 	for _, v := range result {
-		coll := db.Collection(v)
+		colls = append(colls, v)
+		// coll := db.Collection(v)
 
-		cursor, err := coll.Find(ctx, bson.M{})
-		if err != nil {
-			return nil, err
-		}
-
-		var results []interface{}
-		if err = cursor.All(context.TODO(), &results); err != nil {
-			log.Fatal(err)
-		}
-
-		rawjson, err := json.Marshal(results)
-		if err != nil {
-			return nil, err
-		}
-
-		fmt.Println(string(rawjson))
-		// for _, r := range results {
-		// 	fmt.Println(r)
+		// cursor, err := coll.Find(ctx, bson.M{})
+		// if err != nil {
+		// 	return nil, err
 		// }
+
+		// var results []interface{}
+		// if err = cursor.All(ctx, &results); err != nil {
+		// 	log.Fatal(err)
+		// }
+
+		// res, err = json.Marshal(results)
+		// if err != nil {
+		// 	return nil, err
+		// }
+
 	}
 
-	return client, nil
+	fmt.Println(colls)
+
+	coll := db.Collection(colls[0])
+
+	cursor, err := coll.Find(ctx, bson.D{})
+	if err != nil {
+		return nil, err
+	}
+
+	var results []bson.M
+	if err = cursor.All(ctx, &results); err != nil {
+		log.Fatal(err)
+	}
+
+	res, err = json.Marshal(results)
+	if err != nil {
+		return nil, err
+	}
+
+	store := []DayAccount{}
+	err = json.Unmarshal(res, &store)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("%+v", store[0])
+
+	return res, nil
 }
